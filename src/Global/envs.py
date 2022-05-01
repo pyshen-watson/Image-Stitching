@@ -15,3 +15,7 @@ ALBUM_TYPES = [
     '2_Keypoint',
     '3_Desciption'
 ]
+
+
+REPROJECTION_FOCAL_LENGTH = 3450
+REPROJECTION_RESIZE_SCALE = 0.5
