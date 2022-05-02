@@ -3,9 +3,8 @@ import numpy as np
 from tqdm import tqdm
 from numba import njit
 from math import floor
-from os import listdir, makedirs
-from os.path import isdir
-from Global.utils import isImage
+from os import makedirs
+from Global.utils import checkSlash, load_img_name
 from Global.envs import REPROJECTION_FOCAL_LENGTH as f
 from Global.envs import REPROJECTION_RESIZE_SCALE as s
 
@@ -42,14 +41,10 @@ def reproject(img, f):
 
     return new_img
 
-def reproject_dir(input_dir, output_dir):
-
-    if not isdir(input_dir):
-        return
+def reproject_all(input_dir, output_dir):
 
     makedirs(output_dir, exist_ok=True)
-
-    filenames = [file for file in listdir(input_dir) if isImage(file)]
+    filenames = load_img_name(input_dir)
 
     for filename in tqdm(filenames, desc='Reprojecting: '):
 
@@ -61,7 +56,6 @@ def reproject_dir(input_dir, output_dir):
         im = reproject(im, f // 2)
         cv2.imwrite(out_name, im)
 
-
 if __name__ == '__main__':
 
     from argparse import ArgumentParser
@@ -71,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument("output_dir", type=str)
     args = parser.parse_args()
 
-    input_dir = args.input_dir
-    output_dir = args.output_dir
+    input_dir = checkSlash(args.input_dir)
+    output_dir = checkSlash(args.output_dir)
 
-    reproject_dir(input_dir, output_dir)
+    reproject_all(input_dir, output_dir)

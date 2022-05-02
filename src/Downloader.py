@@ -18,8 +18,6 @@ def download_from_gdrive(name, link, path, type):
     unzip(zipfile_name, extract_path)
     remove(zipfile_name)
 
-
-
 if __name__ == '__main__':
 
     from argparse import ArgumentParser
