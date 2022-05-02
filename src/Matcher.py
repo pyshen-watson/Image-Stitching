@@ -23,14 +23,14 @@ def match(kp_list1, kp_list2):
         if first[1] / second[1] < ET:
             match_list.append((kp1, first[0]))
 
-    return match_list
+    return match_list, len(match_list)
 
 def RANSAC(match_list):
 
     best_model = np.zeros((3,3))
     best_record = 0
 
-    for _ in tqdm(range(N_RANSAC)):
+    for _ in range(N_RANSAC):
 
 
         A = [] # 6x6 matrix
@@ -65,20 +65,21 @@ def RANSAC(match_list):
             best_record = N_inlier
             best_model = model
 
-    return best_model
+    return best_model, best_record
 
-def match_all(img_dir, kp_dir, output_dir):
+def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
 
     makedirs(output_dir, exist_ok=True)
+
     imgNames = load_img_name(img_dir)
     imgNames.sort()
+
     kpNames = load_json_name(kp_dir)
     kpNames.sort()
+
     filenames = zip(imgNames, kpNames)
 
-
-    images = []
-    kp_lists = []
+    img_pool = []
 
     for (imgName, kpName) in filenames:
 
@@ -97,49 +98,81 @@ def match_all(img_dir, kp_dir, output_dir):
         im = cv2.imread(img_name)
         with open(kp_name, "r") as fp:
             kp_list = json.load(fp)
-
         for kp in kp_list:
             kp['desc'] = np.array(kp['desc'])
 
-        images.append(im)
-        kp_lists.append(kp_list)
 
-    for i in range(7,len(images)-1):
+        img_pool.append((imgName, im, kp_list))
 
-        img1, img2 = images[i], images[i+1]
-        kp_list1, kp_list2 = kp_lists[i], kp_lists[i+1]
+    if sort:
+        cur = img_pool.pop()
+        img_sequence = []
 
-        matches = match(kp_list1, kp_list2)
-        model = RANSAC(matches)
+        while img_pool:
 
-        print(len(matches))
+            (name1, im1, kp_list1) = cur
 
-        inlier = []
-        for (kp1, kp2) in matches:
-            v1 = np.array([kp1['x'], kp1['y'], 1.0])
-            v2 = np.array([kp2['x'], kp2['y'], 1.0])
-            err =  np.sum((np.matmul(model, v2) - v1) ** 2)
-            if err < IT:
-                inlier.append((kp1, kp2))
+            best_inline_n = 0
+            best_index = 0
 
-        # for kp in kp_list1:
-        #     cv2.circle(img1, (kp['y'], kp['x']), 4, (0,0,255), -1)
-        # for kp in kp_list2:
-        #     cv2.circle(img2, (kp['y'], kp['x']), 4, (0,0,255), -1)
+            for i, (name2, im2, kp_list2) in tqdm(enumerate(img_pool), desc=f'Last {len(img_pool)}: '):
 
-        # for (kp1, kp2) in matches:
-        #     cv2.circle(img1, (kp1['y'], kp1['x']), 6, (0,255,255), -1)
-        #     cv2.circle(img2, (kp2['y'], kp2['x']), 6, (0,255,255), -1)
+                match_list, _ = match(kp_list1, kp_list2)
+                _, inlier_n = RANSAC(match_list)
 
-        for (kp1, kp2) in inlier:
-            cv2.circle(img1, (kp1['y'], kp1['x']), 6, (0,255,0), -1)
-            cv2.circle(img2, (kp2['y'], kp2['x']), 6, (0,255,0), -1)
+                if inlier_n > best_inline_n:
+                    best_inline_n = inlier_n
+                    best_index = i
 
-        cv2.imwrite('img1.jpg', img1)
-        cv2.imwrite('img2.jpg', img2)
+            img_sequence.append(cur)
+            cur = img_pool.pop(best_index)
 
-        break
+        img_sequence.append(cur)
+    else:
+        img_sequence = img_pool
 
+
+    last = img_sequence.pop(0)
+    img_sequence.append(last)
+    model_list = []
+
+    for (name2, im2, kp_list2) in tqdm(img_sequence, total=len(img_sequence), desc='Matching: '):
+
+        (name1, im1, kp_list1) = last
+        match_list, _ = match(kp_list1, kp_list2)
+        model, _ = RANSAC(match_list)
+        model_list.append(model)
+
+        if draw:
+
+            inlier = []
+            for (kp1, kp2) in match_list:
+                v1 = np.array([kp1['x'], kp1['y'], 1.0])
+                v2 = np.array([kp2['x'], kp2['y'], 1.0])
+                err =  np.sum((np.matmul(model, v2) - v1) ** 2)
+                if err < IT:
+                    inlier.append((kp1, kp2))
+
+
+
+            for (kp1, kp2) in match_list:
+                cv2.circle(im1, (kp1['y'], kp1['x']), 6, (0,255,255), -1)
+                cv2.circle(im2, (kp2['y'], kp2['x']), 6, (0,255,255), -1)
+
+            for (kp1, kp2) in inlier:
+                cv2.circle(im1, (kp1['y'], kp1['x']), 6, (0,0,255), -1)
+                cv2.circle(im2, (kp2['y'], kp2['x']), 6, (0,0,255), -1)
+
+        last = (name2, im2, kp_list2)
+
+    if draw:
+        for (name, im, kp_list) in img_sequence:
+            out_name = output_dir + name
+            cv2.imwrite(out_name, im)
+
+    data = [ (img_name, model.tolist()) for img_name, model in zip(imgNames, model_list)]
+    with open(f'{output_dir}model.json', "w") as fp:
+        json.dump(data, fp)
 
 if __name__ == '__main__':
 
