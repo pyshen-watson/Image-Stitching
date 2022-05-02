@@ -8,6 +8,11 @@ def isImage(str):
             return True
     return False
 
+def isJson(str):
+    if '.json' in str:
+        return True
+    return False
+
 def load_img_name(img_dir):
 
     if not isdir(img_dir):
@@ -15,11 +20,18 @@ def load_img_name(img_dir):
 
     return [file for file in listdir(img_dir) if isImage(file)]
 
+def load_json_name(img_dir):
+
+    if not isdir(img_dir):
+        return []
+
+    return [file for file in listdir(img_dir) if isJson(file)]
+
 def checkSlash(path):
     if path[-1] != '/':
         return path + '/'
     return path
-    
+
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
