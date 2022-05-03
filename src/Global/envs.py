@@ -13,7 +13,8 @@ ALBUM_TYPES = [
     '1_Reprojected',
     '2_Keypoint',
     '3_Desciption',
-    '4_Matches'
+    '4_Matches',
+    '5_Stitich'
 ]
 
 REPROJECTION_FOCAL_LENGTH = 3450

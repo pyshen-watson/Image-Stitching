@@ -69,7 +69,7 @@ def RANSAC(match_list):
 
     return best_model, best_record
 
-def load_resource(imgNames, kpNames):
+def load_resource(img_dir, kp_dir, imgNames, kpNames):
 
     img_pool = []
 
@@ -135,7 +135,7 @@ def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
     kpNames = load_json_name(kp_dir)
     kpNames.sort()
 
-    img_pool = load_resource(imgNames, kpNames)
+    img_pool = load_resource(img_dir, kp_dir, imgNames, kpNames)
     img_sequence = sort_pool(img_pool) if sort else img_pool
 
 

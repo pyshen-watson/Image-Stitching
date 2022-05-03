@@ -180,7 +180,6 @@ def describe_all(img_dir, kp_dir, output_dir):
             json.dump(kp_list, fp)
 
 
-
 if __name__ == '__main__':
 
     from argparse import ArgumentParser
