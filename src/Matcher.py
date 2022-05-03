@@ -9,7 +9,6 @@ from Global.envs import MATCH_ERROR_THRESHOLD as ET
 from Global.envs import MATCH_INLIER_THRESHOLD as IT
 from Global.envs import MATCH_RANSAC_NUMBER as N_RANSAC
 
-
 def match(kp_list1, kp_list2):
 
     match_list = []
@@ -32,6 +31,7 @@ def RANSAC(match_list):
 
     for _ in range(N_RANSAC):
 
+        # random match a model
 
         A = [] # 6x6 matrix
         b = [] # 6x1 vector
@@ -51,6 +51,8 @@ def RANSAC(match_list):
 
         x = np.linalg.solve(A, b)
 
+        # evaluate this random model
+
         model = np.concatenate((x, np.array([0,0,1]))).reshape((3,3))
 
         N_inlier = 0
@@ -67,21 +69,11 @@ def RANSAC(match_list):
 
     return best_model, best_record
 
-def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
-
-    makedirs(output_dir, exist_ok=True)
-
-    imgNames = load_img_name(img_dir)
-    imgNames.sort()
-
-    kpNames = load_json_name(kp_dir)
-    kpNames.sort()
-
-    filenames = zip(imgNames, kpNames)
+def load_resource(imgNames, kpNames):
 
     img_pool = []
 
-    for (imgName, kpName) in filenames:
+    for (imgName, kpName) in zip(imgNames, kpNames):
 
         # Check input
         prefix_img = imgName.split('.')[0]
@@ -96,45 +88,60 @@ def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
 
         # Loading resource
         im = cv2.imread(img_name)
+
         with open(kp_name, "r") as fp:
             kp_list = json.load(fp)
         for kp in kp_list:
             kp['desc'] = np.array(kp['desc'])
 
-
         img_pool.append((imgName, im, kp_list))
 
-    if sort:
-        cur = img_pool.pop()
-        img_sequence = []
+    return img_pool
 
-        while img_pool:
+def sort_pool(img_pool):
 
-            (name1, im1, kp_list1) = cur
+    cur = img_pool.pop(0)
+    img_sequence = []
 
-            best_inline_n = 0
-            best_index = 0
+    while img_pool:
 
-            for i, (name2, im2, kp_list2) in tqdm(enumerate(img_pool), desc=f'Last {len(img_pool)}: '):
+        (name1, im1, kp_list1) = cur
 
-                match_list, _ = match(kp_list1, kp_list2)
-                _, inlier_n = RANSAC(match_list)
+        best_inline_n = 0
+        best_index = 0
 
-                if inlier_n > best_inline_n:
-                    best_inline_n = inlier_n
-                    best_index = i
+        for i, (name2, im2, kp_list2) in tqdm(enumerate(img_pool), desc=f'Last {len(img_pool)}: '):
 
-            img_sequence.append(cur)
-            cur = img_pool.pop(best_index)
+            match_list, _ = match(kp_list1, kp_list2)
+            _, inlier_n = RANSAC(match_list)
+
+            if inlier_n > best_inline_n:
+                best_inline_n = inlier_n
+                best_index = i
 
         img_sequence.append(cur)
-    else:
-        img_sequence = img_pool
+        cur = img_pool.pop(best_index)
+
+    img_sequence.append(cur)
+    return img_sequence
+
+def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
+
+    makedirs(output_dir, exist_ok=True)
+
+    imgNames = load_img_name(img_dir)
+    imgNames.sort()
+
+    kpNames = load_json_name(kp_dir)
+    kpNames.sort()
+
+    img_pool = load_resource(imgNames, kpNames)
+    img_sequence = sort_pool(img_pool) if sort else img_pool
 
 
     last = img_sequence.pop(0)
     img_sequence.append(last)
-    model_list = []
+    model_list = [np.identity(3)]
 
     for (name2, im2, kp_list2) in tqdm(img_sequence, total=len(img_sequence), desc='Matching: '):
 
@@ -153,8 +160,6 @@ def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
                 if err < IT:
                     inlier.append((kp1, kp2))
 
-
-
             for (kp1, kp2) in match_list:
                 cv2.circle(im1, (kp1['y'], kp1['x']), 6, (0,255,255), -1)
                 cv2.circle(im2, (kp2['y'], kp2['x']), 6, (0,255,255), -1)
@@ -170,9 +175,15 @@ def match_all(img_dir, kp_dir, output_dir, sort=False, draw=False):
             out_name = output_dir + name
             cv2.imwrite(out_name, im)
 
-    data = [ (img_name, model.tolist()) for img_name, model in zip(imgNames, model_list)]
+
+    imgNames.append(imgNames[0])
+    first_img_kp_list = [(kp['x'], kp['y']) for kp in last[2]]
+    model_data = [ (img_name, model.tolist()) for img_name, model in zip(imgNames, model_list)]
+
     with open(f'{output_dir}model.json', "w") as fp:
-        json.dump(data, fp)
+        json.dump(model_data, fp)
+    with open(f'{output_dir}first_img_kp_list.json', "w") as fp:
+        json.dump(first_img_kp_list, fp)
 
 if __name__ == '__main__':
 
