@@ -1,6 +1,8 @@
 import cv2
 import json
 import numpy as np
+from cv2 import Mat
+from typing import List, Tuple
 from tqdm import tqdm
 from numba import njit
 from os import makedirs
@@ -15,9 +17,13 @@ from Global.envs import DETECT_K as K
 from Global.envs import DETECT_R_THRESHOLD as RT
 from Global.envs import DETECT_ANMS_NUMBER as N_ANMS
 from Global.envs import DETECT_ANMS_RADIUS as R_ANMS
+from Global.envs import DRAW_PEN_SIZE as PEN_SIZE
+
+KP_List = List[Tuple[int, int, float]]
+pair_int = Tuple[int, int]
 
 @njit
-def getKPs(R, T):
+def get_all_local_maxima_points(R, T) -> KP_List:
 
     kp_list = list()
 
@@ -43,24 +49,28 @@ def getKPs(R, T):
     kp_list.sort(key=lambda s:s[2])
     return kp_list
 
-def ANMS(height, width, kp_list, R, N):
+def ANMS(height: int, width: int, kp_list: KP_List, radius: int, N_kp:int, border:pair_int) -> List[pair_int]:
 
     # padding map in order to use kernel
-    kp_map = np.ones((height+2*R, width+2*R), dtype=np.bool_)
+    kp_map = np.zeros((height+2*radius, width+2*radius), dtype=np.bool_)
+
+    # Pixels around border are deprecated
+    left, right = border
+    kp_map[radius+30:-radius-30, radius+left+30:radius+right-30] = True
+
     getCircularKenel = lambda r : np.bitwise_not(cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*r+1,2*r+1)).astype(np.bool_))
-
-
     new_kp_list = list()
 
-    for i in range(N):
+    k = radius / 2 / np.log(N_kp+1)
 
-        r = R - (R * i) // N
+    for i in range(N_kp):
+
+        r = int(radius - k * np.log(i+1))
 
         # pop until get a valid x and y
-        while True:
-            x, y, value = kp_list.pop()
-            if kp_map[r+x, r+y]:
-                break
+        x, y, _ = kp_list.pop()
+        while not kp_map[r+x, r+y] and kp_list:
+            x, y, _ = kp_list.pop()
 
         # Mask up the circular range
         kp_map[x:x+2*r+1, y:y+2*r+1] &= getCircularKenel(r)
@@ -68,7 +78,7 @@ def ANMS(height, width, kp_list, R, N):
 
     return new_kp_list
 
-def HarrisDetector(img):
+def HarrisDetector(img: Mat) -> List[pair_int]:
 
     img = cv2.GaussianBlur(img, (BKSIZE, BKSIZE), BSIGMA, borderType=cv2.BORDER_REFLECT)
     Ix = cv2.Sobel(img, cv2.CV_64F, 1, 0, ksize=GKSIZE)
@@ -84,42 +94,51 @@ def HarrisDetector(img):
     Sy2 = convolve2d(Iy2, kernel, mode='same', boundary='symm')
     Sxy = convolve2d(Ixy, kernel, mode='same', boundary='symm')
 
-
     R = (Sx2 * Sy2 - Sxy * Sxy) - K * (Sx2 + Sy2) * (Sx2 + Sy2)
 
+    kp_list = get_all_local_maxima_points(R, RT)
+
     height, width = img.shape
-    kp_list = getKPs(R, RT)
-    kp_list = ANMS(height, width, kp_list, R_ANMS, N_ANMS)
+    horizontal_cut = img[img.shape[0]//2, :]
+    content = np.nonzero(horizontal_cut)[0]
+    left, right = content[0], content[-1]
+
+    kp_list = ANMS(height, width, kp_list, R_ANMS, N_ANMS, (left, right) )
 
     return kp_list
 
-def detect_all(input_dir, output_dir):
+def draw(img: Mat, kp_list: List[pair_int], out_name: str) -> None:
+
+    for (x, y) in kp_list:
+        img = cv2.circle(img, (y,x), PEN_SIZE, (0,0,255), -1)
+    cv2.imwrite(out_name, img)
+
+def detect_all(input_dir:str, output_dir:str):
 
     makedirs(output_dir, exist_ok=True)
     filenames = load_img_name(input_dir)
 
-    for filename in tqdm(filenames):
+    with tqdm(total=len(filenames), desc='Detecting: ') as pbar:
 
-        in_name = input_dir +  filename
-        out_name = output_dir + filename
-        ext = out_name.split('.')[-1]
-        save_name = out_name.replace(ext, 'json')
+        for filename in filenames:
 
+            in_name = input_dir +  filename
+            out_name = output_dir + filename
+            save_name = out_name.replace(out_name.split('.')[-1], 'json')
 
-        # Corner detection
-        im = cv2.imread(in_name)
-        gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
-        kp_list = HarrisDetector(gray)
+            # Corner detection
+            im = cv2.imread(in_name)
+            gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+            kp_list = HarrisDetector(gray)
 
-        # Draw key points
-        kp_img = np.copy(im)
-        for (x, y) in kp_list:
-            kp_img = cv2.circle(kp_img, (y,x), 6, (0,0,255), -1)
-        cv2.imwrite(out_name, kp_img)
+            # Draw key points
+            draw(im, kp_list, out_name)
 
-        # Save key points
-        with open(save_name, "w") as fp:
-            json.dump(kp_list, fp)
+            # Save key points
+            with open(save_name, "w") as fp:
+                json.dump(kp_list, fp)
+
+            pbar.update(1)
 
 if __name__ == '__main__':
 

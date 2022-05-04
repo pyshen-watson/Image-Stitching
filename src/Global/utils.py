@@ -1,5 +1,10 @@
+def print_exit(msg: str) -> None:
+    print(msg)
+    exit()
+
 from os import listdir
 from os.path import isdir
+from typing import List
 
 def isImage(str):
     exts = ['.jpg','.JPG', '.png', '.PNG', '.bmp', '.BMP', '.jpeg', '.JPEG']
@@ -13,7 +18,7 @@ def isJson(str):
         return True
     return False
 
-def load_img_name(img_dir):
+def load_img_name(img_dir:str)->List[str]:
 
     if not isdir(img_dir):
         return []

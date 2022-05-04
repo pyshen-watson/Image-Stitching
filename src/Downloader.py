@@ -3,19 +3,20 @@ from gdown import download
 from zipfile import ZipFile
 
 
-def unzip(zipfile, extract_path):
+def unzip(zipfile: str, extract_path: str) -> None:
+
     with ZipFile(zipfile, "r") as zip_ref:
         zip_ref.extractall(extract_path)
 
-def download_from_gdrive(name, link, path, type):
+def download_all(link:str, out_dir:str) -> None:
+
+    makedirs(out_dir, exist_ok=True)
 
     url = f'https://drive.google.com/uc?id={link}'
-    zipfile_name = f'{path+name}/temp.zip'
-    extract_path = f'{path+name}/{type}'
+    zipfile_name = f'{out_dir}temp.zip'
 
-    makedirs(path+name, exist_ok=True)
     download(url=url, output=zipfile_name, quiet=False)
-    unzip(zipfile_name, extract_path)
+    unzip(zipfile_name, out_dir)
     remove(zipfile_name)
 
 if __name__ == '__main__':
@@ -36,12 +37,9 @@ if __name__ == '__main__':
         print(f'Please enter a valid id between 0~{len(NAMES)-1}')
         exit()
 
-    album_id = 0
-    name = NAMES[album_id]
     link = LINKS[album_id]
-    path = PATH
-    type = TYPES[0]
+    out_dir = f'{PATH}{NAMES[album_id]}/{TYPES[0]}'
 
-    download_from_gdrive(name, link, path, type)
+    download_all(link, out_dir)
 
 
