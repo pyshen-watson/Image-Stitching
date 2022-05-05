@@ -22,3 +22,6 @@ There are three arguments:
 - `-d`: Use the images download from cloud, use id `0`~`2` to specify the image set
 -  `-p`: Follow the path of image set in local path. Note that you cannot use `-d` and `-p` at the same time.
 - `-n`: If the images didn't be shotted clockwise, use the argument to reorder the images. Note that this option may massively increase the execute time.
+
+
+You can also run the Jupyter notebook `src/main.ipynb`
