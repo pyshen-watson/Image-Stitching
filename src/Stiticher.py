@@ -1,12 +1,10 @@
 import cv2
 import json
 import numpy as np
-from tqdm import tqdm
 from cv2 import Mat
-from numba import njit
-from os import makedirs
-from Global.utils import imshow
-from typing import Dict, List, Tuple
+from tqdm import tqdm
+from os import makedirs, listdir
+from typing import  List, Tuple
 from Global.utils import checkSlash
 
 class Image:
@@ -108,21 +106,10 @@ def draw_image(canvas_height: int, canvas_width: int, img_seq: List[Image]):
 
     return canvas
 
-def stitch_all(img_dir, data_dir, output_dir):
-
-    makedirs(output_dir, exist_ok=True)
-    with open(f'{data_dir}model.json', "r") as fp:
-        model_list = json.load(fp)
-        img_seq = [Image(img_dir+name, model) for (name, model) in model_list]
-        img_seq[0].model = np.identity(3)
-
-    for i in range(1,len(img_seq)):
-        last = img_seq[i-1]
-        cur = img_seq[i]
-        cur.model = last.model @ cur.model
+def get_canvas_shape(img_seq: List[Image]) -> Tuple[int, int]:
 
     all_vertices = []
-    for img in img_seq:
+    for img in img_seq[:-1]:
         vertices = img.getTransVertice()
         for v in vertices:
             all_vertices.append(v)
@@ -132,15 +119,35 @@ def stitch_all(img_dir, data_dir, output_dir):
     min_x = np.min(all_vertices[:,0])
     max_y = np.max(all_vertices[:,1])
     min_y = np.min(all_vertices[:,1])
-
-    canvas_h = max_x
-    canvas_w = max_y
     # print(f'x: {min_x}~{max_x}  y: {min_y}~{max_y}')
-    # return
+
+    return max_x, max_y
+
+def stitch_all(img_dir, data_dir, output_dir):
+
+    makedirs(output_dir, exist_ok=True)
+    with open(f'{data_dir}model.json', "r") as fp:
+        model_list = json.load(fp)
+        img_seq = [Image(img_dir+name, model) for (name, model) in model_list]
+
+    cv2.imwrite(f'{output_dir}example.jpg', img_seq[0].img)
+
+    for i in range(1,len(img_seq)):
+        last = img_seq[i-1]
+        cur = img_seq[i]
+        cur.model = last.model @ cur.model
+
+    canvas_h, canvas_w = get_canvas_shape(img_seq)
+    if abs(canvas_h) > 10000 or abs(canvas_w) > 20000:
+        print('Drift too much')
+        return
 
     canvas = draw_image(canvas_h, canvas_w, img_seq[:-1])
     cv2.imwrite(f'{output_dir}Full.jpg', canvas)
 
+    with open(f'{output_dir}model.json', "w") as fp:
+        model_list = [img.model.tolist() for img in img_seq]
+        json.dump(model_list, fp)
 
 
 if __name__ == '__main__':
@@ -149,12 +156,12 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument("img_dir", type=str)
-    parser.add_argument("kp_dir", type=str)
+    parser.add_argument("data_dir", type=str)
     parser.add_argument("output_dir", type=str)
     args = parser.parse_args()
 
     img_dir = checkSlash(args.img_dir)
-    kp_dir = checkSlash(args.kp_dir)
+    data_dir = checkSlash(args.data_dir)
     output_dir = checkSlash(args.output_dir)
 
-    stitch_all(img_dir, kp_dir, output_dir)
+    stitch_all(img_dir, data_dir, output_dir)
