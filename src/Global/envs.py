@@ -2,14 +2,12 @@ from os import getcwd
 ALBUM_PATH = getcwd().replace('/src','/')
 ALBUM_NAMES = [
     'Lake',
-    'Main-library',
     'Park',
     'Plaza',
     'Balcony'
 ]
 ALBUM_LINKS = [
     '1XL0kYusA5Tr6GfcQ22kxsIWE8vjWtYlo',
-    '15syDksV3CwYswcFVgryBNoSFFQ9iyx3A',
     '1gnryz_onKXZHkH6Bix0Sk7CASyjIrovE',
     '1zPLgrEG21KjOFcro3O-kSpzB8i1JfGpU',
     '1iNbX_1-1XHSTabKGYwV6m9MWilC1XCfs'
@@ -21,6 +19,7 @@ ALBUM_TYPES = [
     '3_Desciption',
     '4_Matches',
     '5_Stitich',
+    '6_Optimized'
 ]
 
 REPROJECTION_RESIZE_SCALE = 0.5
@@ -52,3 +51,7 @@ MATCH_INLIER_THRESHOLD = 1000
 
 DRAW_PEN_SIZE = max( int(16 * REPROJECTION_RESIZE_SCALE), 1)
 DRAW_PEN_SIZE_THIN = max( int(8 * REPROJECTION_RESIZE_SCALE), 1)
+
+OPTIMIZE_REMAIN_RATIO = 0.9
+OPTIMIZE_BLUR_KSIZE = 7
+OPTIMIZE_BLUR_SIGMA = 5
