@@ -2,13 +2,13 @@ from __future__ import annotations
 import cv2
 import json
 import numpy as np
-from os import makedirs
-from numpy.random import choice
-from tqdm import tqdm
 from cv2 import Mat
-from typing import List, Optional, Tuple
+from os import makedirs
+from tqdm import tqdm
 from numba import njit
+from numpy.random import choice
 from numba.typed import List as nblist
+from typing import  List, Optional, Tuple
 from Global.utils import load_img_name, load_json_name, checkSlash, print_exit
 from Global.envs import MATCH_ERROR_THRESHOLD as ET
 from Global.envs import MATCH_INLIER_THRESHOLD as IT
@@ -29,8 +29,6 @@ class Keypoint:
     def tolist(self) -> List:
         return [self.x, self.y]
 
-KPpair = Tuple[Keypoint, Keypoint]
-
 class Image:
 
     def __init__(self, name:str, img:Mat, kp_list:List[Keypoint]):
@@ -41,11 +39,13 @@ class Image:
         self.model = np.identity(3)
         self.inlier_list = []
 
-def RANSAC(match_list:List[Tuple[int, int, int, int]]) -> Tuple[np.ndarray,List[KPpair]]:
+KPpair = Tuple[Keypoint, Keypoint]
+PairList = List[Tuple[int, int, int, int]]
 
+def RANSAC(match_list:PairList) -> Tuple[np.ndarray,List[KPpair]]:
 
     @njit
-    def fit(match_list: List[Tuple[int, int, int, int]]) -> Tuple[np.ndarray, List[Tuple[int, int, int, int]]]:
+    def fit(match_list: PairList) -> Tuple[np.ndarray, PairList]:
 
         best_model = np.zeros((3,3))
         best_record = [(0,0,0,0) for i in range(0)]
@@ -99,7 +99,7 @@ def RANSAC(match_list:List[Tuple[int, int, int, int]]) -> Tuple[np.ndarray,List[
 
     return best_model, best_record
 
-def img_match(img1: Image, img2:Image) -> List[Tuple[int, int, int, int]]:
+def img_match(img1: Image, img2:Image) -> PairList:
 
     kp_list1 = [(kp.x, kp.y, kp.dv) for kp in img1.kp_list]
     kp_list2 = [(kp.x, kp.y, kp.dv) for kp in img2.kp_list]
@@ -128,7 +128,37 @@ def img_match(img1: Image, img2:Image) -> List[Tuple[int, int, int, int]]:
 
     return match_list
 
-def load_resource(img_dir, kp_dir) -> List[Image]:
+def ordering(img_pool: List[Image]) -> List[Image]:
+
+    last = img_pool.pop(0)
+    img_seq = [last]
+
+    N = len(img_pool)
+
+    with tqdm(total=N*(N+1), desc='Ordering: ') as pbar:
+
+        while img_pool:
+
+            result = []
+
+            for cur in img_pool:
+
+                match_list = img_match(last, cur)
+                model, inlier_list = RANSAC(match_list)
+                result.append((cur, inlier_list))
+                pbar.update(1)
+
+            result.sort(key=lambda s: len(s[1]), reverse=True)
+            best_img, _ = result[0]
+
+            img_seq.append(best_img)
+            index = img_pool.index(best_img)
+            last = img_pool.pop(index)
+
+    img_seq.append(last)
+    return img_seq
+
+def load_images_and_keypoints(img_dir, kp_dir) -> List[Image]:
 
     imgNames = load_img_name(img_dir)
     kpNames = load_json_name(kp_dir)
@@ -172,13 +202,16 @@ def draw(img_seq: List[Image], out_dir: str) -> None:
 
         cv2.imwrite(out_dir+img.name, img.img)
 
-def match_all(img_dir: str, kp_dir: str, output_dir: str) -> None:
+def match_all(img_dir: str, kp_dir: str, output_dir: str, hasOrdered: bool = True) -> None:
 
     makedirs(output_dir, exist_ok=True)
-    img_seq = load_resource(img_dir, kp_dir)
-    img_seq.append(img_seq[0])
+    img_seq = load_images_and_keypoints(img_dir, kp_dir)
+
+    if not hasOrdered:
+        img_seq = ordering(img_seq)
 
     with tqdm(total=(len(img_seq)-1), desc='Matching: ') as pbar:
+        
         for i in range(len(img_seq)-1):
             img1 = img_seq[i]
             img2 = img_seq[i+1]
@@ -197,10 +230,6 @@ def match_all(img_dir: str, kp_dir: str, output_dir: str) -> None:
     with open(f'{output_dir}model.json', "w") as fp:
         model_data = [ (img.name, img.model.tolist()) for img in img_seq]
         json.dump(model_data, fp)
-
-    with open(f'{output_dir}calibration.json', "w") as fp:
-        calibration = [kp.tolist() for kp in img_seq[0].kp_list]
-        json.dump(calibration, fp)
 
 if __name__ == '__main__':
 
