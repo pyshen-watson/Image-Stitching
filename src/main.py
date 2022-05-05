@@ -23,7 +23,7 @@ def set_parser():
     path_help = "The path to the directory contents images"
     parser.add_argument('--path', '-p', type=str, default='', required=False, help=path_help)
 
-    ordered_help = "If the images have been ordered"
+    ordered_help = "If the images have been ordered, note that it will cost much time."
     parser.add_argument('--nonordered', '-n', action='store_true', help=ordered_help)
     parser.set_defaults(nonordered=False)
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
         name = NAMES[download_id]
         link = LINKS[download_id]
         type = TYPES[0]
-        dirs = [ f'{PATH}/{name}/{t}/'for t in TYPES]
+        dirs = [ f'{PATH}/[{download_id}]{name}/{t}/'for t in TYPES]
 
         download_all(link, dirs[0])
         reproject_all(dirs[0], dirs[1])

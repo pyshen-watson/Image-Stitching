@@ -115,8 +115,8 @@ def optimize(input_dir, output_dir):
 
 
 
-    cv2.imwrite(f'{output_dir}Panorama.jpg', img)
-    print(f'Write paranoma at {output_dir}Panorama.jpg')
+    cv2.imwrite(f'{output_dir}Panorama.png', img)
+    print(f'Write paranoma at {output_dir}Panorama.png')
 
 
 
