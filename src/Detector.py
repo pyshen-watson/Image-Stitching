@@ -101,7 +101,7 @@ def HarrisDetector(img: Mat) -> List[pair_int]:
     height, width = img.shape
     horizontal_cut = img[img.shape[0]//2, :]
     content = np.nonzero(horizontal_cut)[0]
-    left, right = content[0], content[-1]
+    left, right = np.min(content), np.max(content)
 
     kp_list = ANMS(height, width, kp_list, R_ANMS, N_ANMS, (left, right) )
 
