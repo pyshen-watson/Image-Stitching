@@ -3,13 +3,13 @@ from Global.envs import ALBUM_NAMES as NAMES
 from Global.envs import ALBUM_LINKS as LINKS
 from Global.envs import ALBUM_TYPES as TYPES
 from Global.utils import checkSlash, print_exit
-
 from Downloader import download_all
 from Reprojector import reproject_all
 from Detector import detect_all
 from Descriptor import describe_all
 from Matcher import match_all
 from Stiticher import stitch_all
+from Optimizer import optimize
 
 
 def set_parser():
@@ -23,12 +23,18 @@ def set_parser():
     path_help = "The path to the directory contents images"
     parser.add_argument('--path', '-p', type=str, default='', required=False, help=path_help)
 
+    ordered_help = "If the images have been ordered"
+    parser.add_argument('--nonordered', '-n', action='store_true', help=ordered_help)
+    parser.set_defaults(nonordered=False)
+
     return parser.parse_args()
 
 if __name__ == '__main__':
 
     args = set_parser()
     download_id, image_path = args.download, args.path
+    hasOrder = not args.nonordered
+
 
     if len(image_path) > 0:
 
@@ -39,11 +45,12 @@ if __name__ == '__main__':
         name = image_path.split('/')[-1]
         dirs = [ f'{image_path}{t}/'for t in TYPES[1:]]
 
-        reproject_all(image_path, dirs[1])
-        detect_all(dirs[1], dirs[2])
-        describe_all(dirs[1], dirs[2], dirs[3])
-        match_all(dirs[1], dirs[3], dirs[4])
-        stitch_all(dirs[1], dirs[4], dirs[5])
+        reproject_all(image_path, dirs[0])
+        detect_all(dirs[0], dirs[1])
+        describe_all(dirs[0], dirs[1], dirs[2])
+        match_all(dirs[0], dirs[2], dirs[3], hasOrder)
+        stitch_all(dirs[0], dirs[3], dirs[4])
+        optimize(dirs[4], dirs[5])
 
     else:
         if not download_id:
@@ -61,5 +68,6 @@ if __name__ == '__main__':
         reproject_all(dirs[0], dirs[1])
         detect_all(dirs[1], dirs[2])
         describe_all(dirs[1], dirs[2], dirs[3])
-        match_all(dirs[1], dirs[3], dirs[4])
+        match_all(dirs[1], dirs[3], dirs[4], hasOrder)
         stitch_all(dirs[1], dirs[4], dirs[5])
+        optimize(dirs[5], dirs[6])
